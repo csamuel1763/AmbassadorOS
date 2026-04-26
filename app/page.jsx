@@ -333,7 +333,7 @@ function AuthPage({ onLogin }) {
               </div>
             </div>
             <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => onLogin(role)}
+              onClick={() => onLogin({ mode, name, email, pwd, role })}
               className="w-full bg-gradient-to-r from-indigo-600 to-cyan-500 text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-indigo-200">
               {mode === "login" ? "Log In" : "Create Account"}
             </motion.button>
@@ -965,62 +965,79 @@ export default function AmbassadorOS() {
   const showToast = (msg) => setToast(msg);
   const hideToast = () => setToast(null);
 
-  const handleLogin = (r) => {
-    setRole(r);
-    setPage(r === "admin" ? "admin-dashboard" : "dashboard");
-    setAuthed(true);
-    // Mock token for demo
-    setToken("mock-jwt-token");
+  const handleLogin = async ({ mode, name, email, pwd, role: selectedRole }) => {
+    try {
+      const url = mode === 'signup' ? '/api/auth/register' : '/api/auth/login';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password: pwd,
+          role: selectedRole,
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        showToast(data.message || 'Authentication failed');
+        return;
+      }
+
+      const userData = data.data;
+      setUser(userData);
+      setRole(userData.role || selectedRole);
+      setPage(userData.role === 'admin' ? 'admin-dashboard' : 'dashboard');
+      setToken(userData.token);
+      setAuthed(true);
+      showToast('Logged in successfully!');
+    } catch (error) {
+      console.error('Login error:', error);
+      showToast('Authentication error. Please try again.');
+    }
   };
 
   const fetchData = async () => {
     try {
-      // Fetch user profile
-      const userRes = await fetch('/api/auth/profile', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const userData = await userRes.json();
+      if (!token) return;
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [userRes, tasksRes, lbRes, badgesRes] = await Promise.all([
+        fetch('/api/auth/profile', { headers }),
+        fetch('/api/tasks/all', { headers }),
+        fetch('/api/leaderboard/', { headers }),
+        fetch('/api/badges/', { headers }),
+      ]);
+
+      const [userData, tasksData, lbData, badgesData] = await Promise.all([
+        userRes.json(),
+        tasksRes.json(),
+        lbRes.json(),
+        badgesRes.json(),
+      ]);
+
       if (userData.success) setUser(userData.data);
-
-      // Fetch tasks
-      const tasksRes = await fetch('/api/tasks/all', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const tasksData = await tasksRes.json();
       if (tasksData.success) setTasks(tasksData.data);
-
-      // Fetch leaderboard
-      const lbRes = await fetch('/api/leaderboard/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const lbData = await lbRes.json();
       if (lbData.success) setLeaderboard(lbData.data);
-
-      // Fetch badges
-      const badgesRes = await fetch('/api/badges/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const badgesData = await badgesRes.json();
       if (badgesData.success) setBadges(badgesData.data);
 
-      // For admin
       if (role === 'admin') {
-        // Fetch submissions
-        const subRes = await fetch('/api/submissions/all', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const subData = await subRes.json();
-        if (subData.success) setSubmissions(subData.data);
+        const [subRes, analyticsRes] = await Promise.all([
+          fetch('/api/submissions/all', { headers }),
+          fetch('/api/analytics/summary', { headers }),
+        ]);
 
-        // Fetch analytics
-        const analyticsRes = await fetch('/api/analytics/summary', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const analyticsData = await analyticsRes.json();
+        const [subData, analyticsData] = await Promise.all([subRes.json(), analyticsRes.json()]);
+        if (subData.success) setSubmissions(subData.data);
         if (analyticsData.success) setAdminInsights(analyticsData.data);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
+      showToast('Unable to load backend data.');
     }
   };
 

@@ -1,8 +1,11 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI with API key if available, otherwise mock it
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null;
 
 /**
  * AI Service for AmbassadorOS
@@ -12,6 +15,14 @@ const openai = new OpenAI({
 // Evaluate submission quality and generate AI score
 export const evaluateSubmission = async (proofText, taskDescription) => {
   try {
+    // Return mock response if OpenAI is not configured
+    if (!openai) {
+      return {
+        score: 85,
+        analysis: 'AI evaluation not configured. Mock score provided.',
+      };
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -52,6 +63,14 @@ export const evaluateSubmission = async (proofText, taskDescription) => {
 // Recommend next task based on user performance
 export const recommendTask = async (user, availableTasks, completedTasks) => {
   try {
+    // Return mock response if OpenAI is not configured
+    if (!openai) {
+      return {
+        recommendedTaskId: availableTasks[0]?._id || null,
+        reason: 'AI recommendation not configured. Default task suggested.',
+      };
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -107,6 +126,16 @@ export const assessDropoutRisk = async (user, submissions) => {
       return daysDiff <= 30;
     });
 
+    // Return mock response if OpenAI is not configured
+    if (!openai) {
+      return {
+        riskLevel: daysSinceActivity > 14 ? 'High' : daysSinceActivity > 7 ? 'Medium' : 'Low',
+        confidence: 0.75,
+        factors: ['Activity pattern analyzed without AI'],
+        recommendations: ['Continue with regular tasks'],
+      };
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -158,6 +187,20 @@ export const assessDropoutRisk = async (user, submissions) => {
 // Predict top performers
 export const predictTopPerformers = async (users) => {
   try {
+    // Return mock response if OpenAI is not configured
+    if (!openai) {
+      const sorted = [...users]
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 5)
+        .map((u, i) => ({
+          userId: u._id,
+          predictedRank: i + 1,
+          confidence: 0.5,
+          reasoning: 'Based on current points (AI not configured)',
+        }));
+      return { predictions: sorted };
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
